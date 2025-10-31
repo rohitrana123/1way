@@ -1,0 +1,156 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.datasets import load_iris
+from scipy import stats
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+
+# Load dataset
+iris = load_iris(as_frame=True)
+df = iris.frame.copy()
+df.rename(columns={"target": "species"}, inplace=True)
+
+
+df["species"] = df["species"].map(dict(enumerate(iris.target_names)))  # 0,1,2 -> species labels
+df = df.rename(columns={
+    "sepal length (cm)": "sepal_length",
+    "sepal width (cm)": "sepal_width",
+    "petal length (cm)": "petal_length",
+    "petal width (cm)": "petal_width",
+})
+
+
+df.columns
+
+
+# Create the boxplot
+df.boxplot(column="sepal_length", by="species", grid=False, showmeans=True)
+
+# Add titles and labels
+plt.title("Sepal Length by Species")
+plt.suptitle("")  # Remove the default subtitle
+plt.xlabel("Species")
+plt.ylabel("Sepal Length (cm)")
+
+# Show the plot
+plt.show()
+
+
+# Assumption check: Shapiro–Wilk normality test
+shapiro_results = (df.groupby("species")["sepal_length"]
+                   .apply(lambda x: stats.shapiro(x.values))
+                   .apply(lambda r: pd.Series({"W": r.statistic, "p_value": r.pvalue}))
+)
+# Levene's test for homogeneity of variances
+levene_stat, levene_p = stats.levene(*[g["sepal_length"].values for _, g in df.groupby("species")]
+)
+
+
+print("Shapiro–Wilk (per species):")
+print(shapiro_results)
+print("\nLevene's test for equal variances: stat=%.4f, p=%.4g" % (levene_stat, levene_p))
+
+
+# One-way ANOVA: scipy
+f_stat, p_value = stats.f_oneway(*[g["sepal_length"].values for _, g in df.groupby("species")])
+print("One-way ANOVA (scipy): F=%.4f, p=%.4g" % (f_stat, p_value))
+
+# One-way ANOVA: statsmodels
+model = smf.ols("sepal_length ~ C(species)", data=df).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("ANOVA table (statsmodels):")
+print(anova_table)
+
+
+# Effect size: η²
+ss_effect = anova_table.loc["C(species)", "sum_sq"]
+ss_total = ss_effect + anova_table.loc["Residual", "sum_sq"]
+eta_sq = ss_effect / ss_total
+print("Eta-squared (η²): %.4f" % eta_sq)
+
+
+
+# Post-hoc Tukey HSD if ANOVA is significant
+tukey = pairwise_tukeyhsd(endog=df["sepal_length"], groups=df["species"], alpha=0.05)
+print("Tukey HSD post-hoc test results:")
+print(tukey)
+
+
+
+
+## Example2
+import seaborn as sns
+
+# Step 1: Load Titanic dataset
+titanic = sns.load_dataset('titanic')
+print("Dataset Loaded:")
+print(titanic.head())
+
+
+# Step 2: Check for missing values and drop rows where 'age' or 'pclass' is missing
+# We only need 'age' and 'pclass' columns for the analysis
+titanic_clean = titanic[['age', 'pclass']].dropna()
+
+
+# Step 3: Visualize the distribution of age by passenger class using a boxplot
+plt.figure(figsize=(8, 5))
+sns.boxplot(x='pclass', y='age', data=titanic_clean)
+plt.title('Age distribution across Passenger Classes')
+plt.xlabel('Passenger Class')
+plt.ylabel('Age')
+plt.show()
+
+
+# Step 4: Assumption check - Normality of age within each passenger class using Shapiro-Wilk test
+shapiro_results = titanic_clean.groupby('pclass')['age'].apply(lambda x: stats.shapiro(x)[1])
+print("\nShapiro-Wilk normality test results:")
+print(shapiro_results)
+
+
+# Step 5: Assumption check - Homogeneity of variances (Levene's test)
+levene_stat, levene_p = stats.levene(
+    titanic_clean[titanic_clean['pclass'] == 1]['age'],
+    titanic_clean[titanic_clean['pclass'] == 2]['age'],
+    titanic_clean[titanic_clean['pclass'] == 3]['age']
+)
+print(f"\nLevene's test for equality of variances: stat={levene_stat:.4f}, p={levene_p:.4g}")
+
+
+# Step 6: Run One-Way ANOVA using scipy
+f_stat, p_value = stats.f_oneway(
+    titanic_clean[titanic_clean['pclass'] == 1]['age'],
+    titanic_clean[titanic_clean['pclass'] == 2]['age'],
+    titanic_clean[titanic_clean['pclass'] == 3]['age']
+)
+print(f"\nOne-Way ANOVA (scipy): F-statistic={f_stat:.4f}, p-value={p_value:.4g}")
+
+
+# Step 7: Run One-Way ANOVA using statsmodels and show ANOVA table
+model = smf.ols('age ~ C(pclass)', data=titanic_clean).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("\nANOVA table (statsmodels):")
+print(anova_table)
+
+
+# Step 8: Calculate effect size (Eta-squared, η²)
+ss_effect = anova_table.loc['C(pclass)', 'sum_sq']
+ss_total = ss_effect + anova_table.loc['Residual', 'sum_sq']
+eta_sq = ss_effect / ss_total
+print(f"\nEta-squared (η²): {eta_sq:.4f}")
+
+
+# Step 9: Post-hoc analysis (Tukey HSD) if ANOVA is significant
+# We only perform Tukey's HSD test if the ANOVA p-value is less than 0.05
+if p_value < 0.05:
+    tukey = pairwise_tukeyhsd(endog=titanic_clean['age'], groups=titanic_clean['pclass'], alpha=0.05)
+    print("\nTukey HSD Post-hoc Test Results:")
+    print(tukey)
+else:
+    print("\nNo significant differences found, Tukey HSD not performed.")
+
+
+
