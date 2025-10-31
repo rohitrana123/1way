@@ -1,0 +1,82 @@
+# ------------------------------------------------------------
+# One-Way ANOVA Example in Python
+# ------------------------------------------------------------
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import scipy.stats as stats
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+from bioinfokit.analys import stat
+
+# ------------------------------------------------------------
+# Step 1: Load the dataset
+# ------------------------------------------------------------
+# Dataset contains values for four treatments: A, B, C, and D
+# Each column represents a treatment group
+
+df = pd.read_csv("https://reneshbedre.github.io/assets/posts/anova/onewayanova.txt", sep="\t")
+
+print("Dataset Preview:\n", df.head())
+
+# ------------------------------------------------------------
+# Step 2: Reshape the dataframe for ANOVA analysis
+# ------------------------------------------------------------
+# Convert data from wide to long format
+df_melt = pd.melt(df.reset_index(), id_vars=['index'], value_vars=['A', 'B', 'C', 'D'])
+df_melt.columns = ['index', 'treatments', 'value']
+
+print("\nMelted DataFrame:\n", df_melt.head())
+
+# ------------------------------------------------------------
+# Step 3: Visualize data distribution using boxplot and swarmplot
+# ------------------------------------------------------------
+plt.figure(figsize=(7,5))
+sns.boxplot(x='treatments', y='value', data=df_melt, color='#99c2a2')
+sns.swarmplot(x='treatments', y='value', data=df_melt, color='#7d0013')
+plt.title('Treatment-wise Value Distribution')
+plt.show()
+
+# ✅ Expected: Boxplot showing distinct median values among A, B, C, D
+
+# ------------------------------------------------------------
+# Step 4: Perform One-Way ANOVA using SciPy
+# ------------------------------------------------------------
+fvalue, pvalue = stats.f_oneway(df['A'], df['B'], df['C'], df['D'])
+
+print("\nANOVA Results (SciPy):")
+print("F-value:", fvalue)
+print("p-value:", pvalue)
+
+# ✅ Expected Output:
+# F-value ≈ 17.49
+# p-value ≈ 2.63e-05
+# Interpretation: p < 0.05 → significant differences exist among group means.
+
+# ------------------------------------------------------------
+# Step 5: ANOVA Table using statsmodels (R-style output)
+# ------------------------------------------------------------
+model = ols('value ~ C(treatments)', data=df_melt).fit()
+anova_table = sm.stats.anova_lm(model, typ=2)
+
+print("\nANOVA Table (Statsmodels):\n")
+print(anova_table)
+
+# ✅ Expected Output:
+#                 sum_sq    df         F    PR(>F)
+# C(treatments)  3010.95   3.0  17.49281  0.000026
+# Residual        918.00  16.0       NaN       NaN
+
+# ------------------------------------------------------------
+# Step 6: ANOVA Sum
+# ------------------------------------------------------------
+res = stat()
+res.anova_stat(df=df_melt, res_var='value', anova_model='value ~ C(treatments)')
+print("\nANOVA Summary (bioinfokit):\n")
+print(res.anova_summary)
+
+# ✅ Expected Output:
+#                  df   sum_sq   mean_sq         F    PR(>F)
+# C(treatments)   3.0  3010.95  1003.650  17.49281  0.000026
+# Residual       16.0   918.00    57.375       NaN       NaN

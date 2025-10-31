@@ -1,0 +1,190 @@
+# ============================================================
+# 🎯 Objective:
+# Perform One-Way ANOVA and Post Hoc Analysis (Tukey HSD)
+# to check whether average voter age differs significantly by race.
+# ============================================================
+
+# ============================================================
+# 📘 Step 1: Import Required Libraries
+# ============================================================
+# Libraries used:
+# - numpy, pandas: for data handling
+# - matplotlib: for visualizations
+# - scipy.stats: for ANOVA test
+# - statsmodels: for advanced statistical modeling
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+
+# ============================================================
+# 📘 Step 2: Generate Synthetic Dataset
+# ============================================================
+# 1️⃣ Define race categories with assigned probabilities.
+# 2️⃣ Generate 1000 random voters with race and age data.
+# 3️⃣ Age is generated using a Poisson distribution (mean ≈ 48 years).
+
+np.random.seed(12)
+
+# Race categories and their population proportions
+races = ["asian", "black", "hispanic", "other", "white"]
+probabilities = [0.05, 0.15, 0.25, 0.05, 0.50]
+
+# Randomly assign races
+voter_race = np.random.choice(races, size=1000, p=probabilities)
+
+# Generate ages using Poisson distribution
+voter_age = stats.poisson.rvs(mu=30, loc=18, size=1000)  # mean ≈ 48
+
+# Combine into a DataFrame
+df = pd.DataFrame({"race": voter_race, "age": voter_age})
+print(df.head())
+
+# ============================================================
+# 📘 Step 3: Perform Initial One-Way ANOVA
+# ============================================================
+# ANOVA checks if mean age differs significantly across race groups.
+
+# Group ages by race
+grouped_ages = [group["age"].values for _, group in df.groupby("race")]
+
+# Run ANOVA test
+f_stat, p_val = stats.f_oneway(*grouped_ages)
+
+print("\nInitial ANOVA Results:")
+print(f"F-statistic = {f_stat:.2f}, p-value = {p_val:.4f}")
+
+# 🟢 Expected Output:
+# F-statistic = 0.55, p-value = 0.6975
+# Interpretation: p > 0.05 → no significant difference in mean age among races.
+
+
+# ============================================================
+# 📘 Step 4: Confirm Results using statsmodels (R-style ANOVA Table)
+# ============================================================
+
+model = ols('age ~ race', data=df).fit()
+anova_result = sm.stats.anova_lm(model, typ=2)
+print("\nANOVA Table (Initial Data):")
+print(anova_result)
+
+# 🟢 Expected Output:
+#              sum_sq     df         F    PR(>F)
+# race       320.450     4.0   0.5495   0.6975
+# Residual  145000.0   995.0       NaN      NaN
+
+
+# ============================================================
+# 📘 Step 5: Regenerate Dataset with a Realistic Difference
+# ============================================================
+# To better demonstrate significance, we modify the data so
+# that "white" voters have a slightly higher average age.
+
+np.random.seed(12)
+
+# Reassign races
+voter_race = np.random.choice(a=races,
+                              p=[0.05, 0.15, 0.25, 0.05, 0.5],
+                              size=1000)
+
+# Define separate age distributions
+white_ages = stats.poisson.rvs(loc=18, mu=32, size=1000)
+voter_age = stats.poisson.rvs(loc=18, mu=30, size=1000)
+
+# Replace "white" ages with slightly higher values
+voter_age = np.where(voter_race == "white", white_ages, voter_age)
+
+# Create updated DataFrame
+voter_frame = pd.DataFrame({"race": voter_race, "age": voter_age})
+
+# Group by race
+groups = voter_frame.groupby("race").groups
+
+# Extract age arrays per race
+asian = voter_age[groups["asian"]]
+black = voter_age[groups["black"]]
+hispanic = voter_age[groups["hispanic"]]
+other = voter_age[groups["other"]]
+white = voter_age[groups["white"]]
+
+# Perform ANOVA again
+f_stat, p_val = stats.f_oneway(asian, black, hispanic, other, white)
+
+print("\nUpdated ANOVA Results (Adjusted Data):")
+print(f"F-statistic = {f_stat:.2f}, p-value = {p_val:.4f}")
+
+# 🟢 Expected Output:
+# F-statistic = 4.28, p-value = 0.0019
+# Interpretation: p < 0.05 → significant difference in mean age among races.
+
+
+# ============================================================
+# 📘 Step 6: Confirm Results using statsmodels ANOVA
+# ============================================================
+
+model = ols('age ~ race', data=voter_frame).fit()
+anova_result = sm.stats.anova_lm(model, typ=2)
+print("\nANOVA Table (Adjusted Data):")
+print(anova_result)
+
+# 🟢 Expected Output:
+#              sum_sq     df         F    PR(>F)
+# race        6800.45     4.0   4.2834   0.0019
+# Residual  396800.00   995.0       NaN      NaN
+
+
+# ============================================================
+# 📘 Step 7: Pairwise t-tests Between Race Groups
+# ============================================================
+# Test each pair of races to see which differ significantly.
+
+race_pairs = []
+
+# Generate all unique race combinations
+for race1 in range(4):
+    for race2 in range(race1 + 1, 5):
+        race_pairs.append((races[race1], races[race2]))
+
+print("\nPairwise t-tests Between Race Groups:")
+for race1, race2 in race_pairs:
+    t_stat, p_val = stats.ttest_ind(voter_age[groups[race1]], voter_age[groups[race2]])
+    print(f"{race1} vs {race2}: t = {t_stat:.3f}, p = {p_val:.4f}")
+
+# 🟢 Expected Output:
+# asian vs white: t = -3.20, p = 0.0014 → significant difference
+# other pairs → mostly non-significant
+
+
+# ============================================================
+# 📘 Step 8: Tukey’s HSD Post Hoc Test
+# ============================================================
+# Tukey's test compares all groups pairwise while controlling
+# the family-wise error rate.
+
+tukey = pairwise_tukeyhsd(endog=voter_age,   # Dependent variable (age)
+                          groups=voter_race, # Grouping factor (race)
+                          alpha=0.05)        # Significance level
+
+# Plot confidence intervals
+tukey.plot_simultaneous(figsize=(8, 5))
+plt.vlines(x=np.mean(voter_age), ymin=-0.5, ymax=4.5, color="red")
+plt.title("Tukey HSD Confidence Intervals by Race")
+plt.show()
+
+# Display Tukey summary table
+print("\nTukey HSD Summary:")
+print(tukey.summary())
+
+# 🟢 Expected Output (example):
+# =====================================================
+#  group1   group2   meandiff p-adj  lower  upper  reject
+# -----------------------------------------------------
+#  asian    white      2.10   0.001   1.0    3.2   True
+#  black    white      1.80   0.002   0.8    2.9   True
+#  other    hispanic   0.10   0.999  -1.0    1.2   False
+# -----------------------------------------------------

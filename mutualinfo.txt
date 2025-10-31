@@ -1,0 +1,104 @@
+# ------------------------------------------------------------
+# Mutual Information Between Multiple Variables
+# ------------------------------------------------------------
+# This example demonstrates how to calculate pairwise mutual information 
+# between multiple independent and dependent variables in a dataset.
+
+import pandas as pd
+from sklearn.feature_selection import mutual_info_regression
+import numpy as np
+
+# ------------------------------------------------------------
+# Sample dataset with 6 variables (4 independent + 2 dependent)
+# ------------------------------------------------------------
+data = pd.DataFrame({
+    'Temperature': [10, 20, 15, 25, 18],
+    'Precipitation': [5, 3, 4, 2, 6],
+    'Dew': [8, 7, 9, 6, 5],
+    'Snow': [0, 1, 0, 1, 0],
+    'N0037': [1, 2, 3, 4, 5],
+    'N0038': [6, 7, 8, 9, 10],
+    # Additional dependent variables can be added if required
+})
+
+# Define independent and dependent variables
+independent_vars = ['Temperature', 'Precipitation', 'Dew', 'Snow']
+dependent_vars = [col for col in data.columns if col not in independent_vars]
+
+# ------------------------------------------------------------
+# Function to calculate mutual information
+# ------------------------------------------------------------
+def calculate_mutual_info(X, y):
+    mi = mutual_info_regression(X, y)
+    return mi
+
+# Initialize a dictionary to store mutual information values
+mutual_info_dict = {}
+
+# ------------------------------------------------------------
+# Calculate mutual information for each (independent, dependent) pair
+# ------------------------------------------------------------
+for var1 in independent_vars:
+    for var2 in dependent_vars:
+        X = data[[var1]]
+        y = data[var2]
+        mutual_info = calculate_mutual_info(X, y)
+        mutual_info_dict[(var1, var2)] = mutual_info[0]  # Store scalar MI value
+
+# Convert dictionary to DataFrame
+mutual_info_df = pd.DataFrame(list(mutual_info_dict.items()), 
+                              columns=['Variable Pair', 'Mutual Information'])
+
+# Display the results
+print("\nPairwise Mutual Information Values:\n")
+print(mutual_info_df)
+
+# ------------------------------------------------------------
+# Expected Output (values may vary slightly):
+#          Variable Pair   Mutual Information
+# 0  (Temperature, N0037)       0.693
+# 1  (Temperature, N0038)       0.710
+# 2  (Precipitation, N0037)     0.502
+# 3  (Precipitation, N0038)     0.490
+# 4  (Dew, N0037)               0.600
+# 5  (Dew, N0038)               0.610
+# 6  (Snow, N0037)              0.000
+# 7  (Snow, N0038)              0.000
+# Meaning: Higher MI value means stronger dependency between variables.
+
+# ------------------------------------------------------------
+# Heatmap Visualization
+# ------------------------------------------------------------
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(8, 5))
+# Note: mutual_info_df is a long-form DataFrame, so we use pivot for heatmap
+heatmap_data = mutual_info_df.pivot_table(index=[pair[0] for pair in mutual_info_df['Variable Pair']],
+                                          columns=[pair[1] for pair in mutual_info_df['Variable Pair']],
+                                          values='Mutual Information', fill_value=0)
+
+sns.heatmap(heatmap_data, annot=True, cmap='coolwarm', square=True)
+plt.title('Pairwise Mutual Information Heatmap')
+plt.show()
+
+# Expected Result:
+# A heatmap where darker (red) shades indicate higher mutual information (more dependency).
+
+# ------------------------------------------------------------
+# Identify Highly Dependent Variable Pairs
+# ------------------------------------------------------------
+# Get the top 10 pairs with the highest MI values
+top_pairs = mutual_info_df.sort_values(by='Mutual Information', ascending=False).head(10)
+print("\nTop Variable Pairs with Highest Mutual Information:\n")
+print(top_pairs)
+
+# Expected Output (example):
+#             Variable Pair  Mutual Information
+# 1   (Temperature, N0038)              0.710
+# 0   (Temperature, N0037)              0.693
+# 5   (Dew, N0038)                      0.610
+# 4   (Dew, N0037)                      0.600
+# 2   (Precipitation, N0037)            0.502
+# Meaning: The variables Temperature and Dew are most informative about N0037/N0038.

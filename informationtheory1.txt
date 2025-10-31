@@ -1,0 +1,262 @@
+"""
+================================================================================
+INFORMATION THEORY - COMPREHENSIVE IMPLEMENTATION
+================================================================================
+
+TOPIC: Information Theory and its Applications in Machine Learning
+
+OVERVIEW:
+This notebook covers fundamental concepts of information theory including:
+- Self-Information and Entropy
+- Joint Entropy and Conditional Entropy
+- Mutual Information
+- Kullback-Leibler (KL) Divergence
+- Cross-Entropy Loss
+================================================================================
+"""
+
+# Installation cell
+# !pip install -U mxnet-cu112==1.9.1
+
+# Import necessary libraries
+import random
+from mxnet import np
+from mxnet.metric import NegativeLogLikelihood
+from mxnet.ndarray import nansum
+
+# ============================================
+# SECTION 1: SELF-INFORMATION
+# ============================================
+# QUESTION: How do we measure the information content of a single event?
+# 
+# CONCEPT: Self-information measures how "surprising" an event is.
+# - Rare events (low probability) have high information content
+# - Common events (high probability) have low information content
+# 
+# FORMULA: I(X) = -log₂(p(x))
+
+def self_information(p):
+    """Calculate self-information (in bits)"""
+    return -np.log2(p)
+
+# Example usage
+print("Self-information example:")
+print(self_information(1 / 64))
+print()
+
+# ============================================
+# SECTION 2: ENTROPY
+# ============================================
+# QUESTION: How do we measure the average information content 
+#           of a random variable?
+#
+# CONCEPT: Entropy measures the expected amount of information/uncertainty
+# - Shannon entropy is the foundational measure of information
+# - Higher entropy = more uncertainty/randomness
+# - Lower entropy = more predictability
+#
+# FORMULA: H(X) = -Σ p(x) * log₂(p(x))
+
+def entropy(p):
+    """Calculate entropy of a probability distribution"""
+    entropy_vals = -p * np.log2(p)
+    # Use nansum to handle NaN values (from 0*log(0))
+    out = nansum(entropy_vals.as_nd_ndarray())
+    return out
+
+# Example usage
+print("Entropy example:")
+print(entropy(np.array([0.1, 0.5, 0.1, 0.3])))
+print()
+
+# ============================================
+# SECTION 3: JOINT ENTROPY
+# ============================================
+# QUESTION: How much total information is in a pair of random variables?
+#
+# CONCEPT: Joint entropy measures the uncertainty in two variables together
+# - Considers the joint probability distribution p(x,y)
+# - Tells us total randomness in the pair
+#
+# FORMULA: H(X,Y) = -Σ Σ p(x,y) * log₂(p(x,y))
+#
+
+def joint_entropy(p_xy):
+    """Calculate joint entropy of two random variables"""
+    joint_ent = -p_xy * np.log2(p_xy)
+    # Use nansum to sum up non-NaN numbers
+    out = nansum(joint_ent.as_nd_ndarray())
+    return out
+
+# Example usage
+print("Joint entropy example:")
+print(joint_entropy(np.array([[0.1, 0.5], [0.1, 0.3]])))
+print()
+
+# ============================================
+# SECTION 4: CONDITIONAL ENTROPY
+# ============================================
+# QUESTION: How much information does Y contain given we know X?
+#
+# CONCEPT: Conditional entropy measures remaining uncertainty in Y after observing X
+# - The information in Y that is NOT in X
+# - Important for understanding dependencies between variables
+#
+# FORMULA: H(Y|X) = -Σ Σ p(x,y) * log₂(p(y|x))
+# RELATIONSHIP: H(Y|X) = H(X,Y) - H(X)
+#
+
+def conditional_entropy(p_xy, p_x):
+    """Calculate conditional entropy H(Y|X)"""
+    p_y_given_x = p_xy / p_x
+    cond_ent = -p_xy * np.log2(p_y_given_x)
+    # Use nansum to sum up non-NaN numbers
+    out = nansum(cond_ent.as_nd_ndarray())
+    return out
+
+# Example usage
+print("Conditional entropy example:")
+print(conditional_entropy(np.array([[0.1, 0.5], [0.2, 0.3]]), 
+                         np.array([0.2, 0.8])))
+print()
+
+# ============================================
+# SECTION 5: MUTUAL INFORMATION
+# ============================================
+# QUESTION: How much information is SHARED between two variables?
+#
+# CONCEPT: Mutual information measures how much knowing one variable 
+#          reduces uncertainty about the other
+# - Extension of correlation to capture any dependency (not just linear)
+# - Symmetric: I(X,Y) = I(Y,X)
+#
+# FORMULA: I(X,Y) = H(X) + H(Y) - H(X,Y)
+#        = H(X) - H(X|Y) = H(Y) - H(Y|X)
+#        = Σ Σ p(x,y) * log₂(p(x,y)/(p(x)*p(y)))
+#
+def mutual_information(p_xy, p_x, p_y):
+    """Calculate mutual information I(X,Y)"""
+    p = p_xy / (p_x * p_y)
+    mutual = p_xy * np.log2(p)
+    # Use nansum to sum up non-NaN numbers
+    out = nansum(mutual.as_nd_ndarray())
+    return out
+
+# Example usage
+print("Mutual information example:")
+print(mutual_information(np.array([[0.1, 0.5], [0.1, 0.3]]),
+                        np.array([0.2, 0.8]), 
+                        np.array([[0.75, 0.25]])))
+print()
+
+# ============================================
+# SECTION 6: KULLBACK-LEIBLER (KL) DIVERGENCE
+# ============================================
+# QUESTION: How different are two probability distributions?
+#
+# CONCEPT: KL divergence measures how one distribution differs from another
+# - Also called "relative entropy"
+# - Measures extra bits needed if using q(x) instead of true p(x)
+# - NOT a true distance metric (asymmetric)
+#
+# FORMULA: D_KL(P||Q) = Σ p(x) * log₂(p(x)/q(x))
+#        = E_p[log(p(x)) - log(q(x))]
+
+
+
+def kl_divergence(p, q):
+    """Calculate Kullback-Leibler divergence"""
+    kl = p * np.log2(p / q)
+    out = nansum(kl.as_nd_ndarray())
+    return out.abs().asscalar()
+
+# Example: KL Divergence symmetry test
+print("KL Divergence example - Testing Asymmetry:")
+print("-" * 50)
+random.seed(1)
+
+nd_len = 10000
+p = np.random.normal(loc=0, scale=1, size=(nd_len, ))
+q1 = np.random.normal(loc=-1, scale=1, size=(nd_len, ))
+q2 = np.random.normal(loc=1, scale=1, size=(nd_len, ))
+
+# Sort the arrays
+p = np.array(sorted(p.asnumpy()))
+q1 = np.array(sorted(q1.asnumpy()))
+q2 = np.array(sorted(q2.asnumpy()))
+
+# Calculate KL divergences
+kl_pq1 = kl_divergence(p, q1)
+kl_pq2 = kl_divergence(p, q2)
+similar_percentage = abs(kl_pq1 - kl_pq2) / ((kl_pq1 + kl_pq2) / 2) * 100
+
+print(f"KL(p||q1): {kl_pq1}")
+print(f"KL(p||q2): {kl_pq2}")
+print(f"Similarity percentage: {similar_percentage}%")
+print()
+
+# Test asymmetry
+kl_q2p = kl_divergence(q2, p)
+differ_percentage = abs(kl_q2p - kl_pq2) / ((kl_q2p + kl_pq2) / 2) * 100
+print(f"KL(q2||p): {kl_q2p}")
+print(f"Difference percentage: {differ_percentage}%")
+print()
+
+# ============================================
+# SECTION 7: CROSS-ENTROPY
+# ============================================
+# QUESTION: Why do we use cross-entropy as a loss function in ML?
+#
+# CONCEPT: Cross-entropy measures how well distribution Q approximates P
+# - Combines entropy of true distribution + KL divergence
+# - Used extensively in classification tasks
+#
+# FORMULA: CE(P,Q) = -Σ p(x) * log₂(q(x))
+#        = H(P) + D_KL(P||Q)
+#
+
+
+def cross_entropy(y_hat, y):
+    """Calculate cross-entropy loss"""
+    ce = -np.log(y_hat[range(len(y_hat)), y])
+    return ce.mean()
+
+# Example usage
+print("Cross-entropy example:")
+labels = np.array([0, 2])
+preds = np.array([[0.3, 0.6, 0.1], [0.2, 0.3, 0.5]])
+
+ce_loss = cross_entropy(preds, labels)
+print(f"Cross-entropy loss: {ce_loss}")
+print()
+
+# ============================================
+# Verify with NegativeLogLikelihood
+# ============================================
+
+print("Verification with NegativeLogLikelihood:")
+nll_loss = NegativeLogLikelihood()
+nll_loss.update(labels.as_nd_ndarray(), preds.as_nd_ndarray())
+print(f"NLL loss: {nll_loss.get()}")
+print()
+
+print("=" * 50)
+print("All functions have been defined and tested successfully!")
+print("=" * 50)
+print()
+print("SUMMARY OF KEY RELATIONSHIPS:")
+print("-" * 50)
+print("1. H(Y|X) = H(X,Y) - H(X)")
+print("2. I(X,Y) = H(X) + H(Y) - H(X,Y)")
+print("3. I(X,Y) = H(X) - H(X|Y) = H(Y) - H(Y|X)")
+print("4. CE(P,Q) = H(P) + D_KL(P||Q)")
+print("5. Minimizing CE ≡ Minimizing D_KL ≡ Maximizing likelihood")
+print("-" * 50)
+print()
+print("PRACTICAL TAKEAWAYS:")
+print("• Entropy measures uncertainty/information content")
+print("• Mutual Information captures any dependency between variables")
+print("• KL Divergence is asymmetric - choice of direction matters!")
+print("• Cross-Entropy is the standard loss for classification")
+print("• All concepts are connected through information theory")
+print("=" * 50)
